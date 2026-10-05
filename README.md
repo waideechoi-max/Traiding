@@ -27,4 +27,4 @@
 
 ## 설치
 GitHub Actions가 푸시마다 APK를 빌드해 Releases(`build-N`)에 올립니다.
-휴대폰에서 Releases의 `app-debug.apk`를 받아 설치하세요(출처를 알 수 없는 앱 설치 허용 필요).
+휴대폰에서 Releases(최신)의 `TrendJournal.apk`를 받아 설치하세요(출처를 알 수 없는 앱 설치 허용 필요).

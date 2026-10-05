@@ -24,14 +24,27 @@ jobs:
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      - name: Build debug APK
-        run: ./gradlew --no-daemon assembleDebug
+      - name: Build APK
+        env:
+          KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ] && [ -n "$SIGNING_STORE_PASSWORD" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/release.keystore"
+            export SIGNING_KEYSTORE_PATH="$RUNNER_TEMP/release.keystore"
+            ./gradlew --no-daemon assembleRelease
+            cp app/build/outputs/apk/release/app-release.apk TrendJournal.apk
+          else
+            echo "::warning::서명키 Secrets가 없어 디버그 APK로 빌드합니다 (업데이트 설치 불가)."
+            ./gradlew --no-daemon assembleDebug
+            cp app/build/outputs/apk/debug/app-debug.apk TrendJournal.apk
+          fi
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: trend-journal-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: TrendJournal.apk
 
       - name: Publish APK to Releases
         if: github.event_name != 'pull_request'
@@ -39,5 +52,5 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: 추세추종 매매일지 build ${{ github.run_number }}
-          prerelease: true
-          files: app/build/outputs/apk/debug/app-debug.apk
+          make_latest: true
+          files: TrendJournal.apk

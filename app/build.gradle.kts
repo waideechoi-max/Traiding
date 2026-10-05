@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// 서명키는 저장소에 넣지 않고 CI가 GitHub Secrets에서 복원한 경로를 환경변수로 넘깁니다.
+val signingKeystorePath: String? = System.getenv("SIGNING_KEYSTORE_PATH")
+val signingPassword: String? = System.getenv("SIGNING_STORE_PASSWORD")
+
 android {
     namespace = "com.trendfollow.journal"
     compileSdk = 35
@@ -16,9 +20,21 @@ android {
         versionName = "1.0"
     }
 
+    signingConfigs {
+        if (signingKeystorePath != null && signingPassword != null) {
+            create("release") {
+                storeFile = file(signingKeystorePath)
+                storePassword = signingPassword
+                keyAlias = "trendjournal"
+                keyPassword = signingPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
     compileOptions {
