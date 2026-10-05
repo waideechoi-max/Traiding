@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import com.trendfollow.journal.data.JournalStore
 import com.trendfollow.journal.domain.MarketCondition
 import com.trendfollow.journal.domain.MarketLog
+import com.trendfollow.journal.domain.PrevResult
 import com.trendfollow.journal.domain.Settings
 import com.trendfollow.journal.domain.Trade
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,11 +44,16 @@ class JournalViewModel(app: Application) : AndroidViewModel(app) {
         store.saveTrades(_state.value.trades)
     }
 
-    fun setMarket(date: LocalDate, condition: MarketCondition, memo: String? = null) {
+    fun setMarket(date: LocalDate, condition: MarketCondition) = updateLog(date) { it.copy(condition = condition) }
+
+    fun setPrevResult(date: LocalDate, result: PrevResult) = updateLog(date) { it.copy(prevResult = result) }
+
+    fun saveLog(log: MarketLog) = updateLog(log.date) { log }
+
+    private fun updateLog(date: LocalDate, change: (MarketLog) -> MarketLog) {
         _state.update { s ->
-            val old = s.logs.firstOrNull { it.date == date }
-            val log = MarketLog(date, condition, memo ?: old?.memo.orEmpty())
-            s.copy(logs = s.logs.filter { it.date != date } + log)
+            val old = s.logs.firstOrNull { it.date == date } ?: MarketLog(date)
+            s.copy(logs = s.logs.filter { it.date != date } + change(old))
         }
         store.saveLogs(_state.value.logs)
     }

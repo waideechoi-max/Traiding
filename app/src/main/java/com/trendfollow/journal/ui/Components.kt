@@ -19,6 +19,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.trendfollow.journal.domain.MarketCondition
+import com.trendfollow.journal.domain.PrevResult
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
@@ -90,6 +91,25 @@ fun InputField(
         keyboardOptions = if (numeric) KeyboardOptions(keyboardType = KeyboardType.Decimal) else KeyboardOptions.Default,
         modifier = modifier.fillMaxWidth(),
     )
+}
+
+fun PrevResult.chipLabel(): String = when (this) {
+    PrevResult.MISSED -> "미달성 −1"
+    PrevResult.ONGOING -> "진행중 0"
+    PrevResult.ACHIEVED -> "달성 +1"
+}
+
+@Composable
+fun PrevResultSelector(selected: PrevResult?, onSelect: (PrevResult) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        PrevResult.entries.forEach { r ->
+            FilterChip(
+                selected = selected == r,
+                onClick = { onSelect(r) },
+                label = { Text(r.chipLabel()) },
+            )
+        }
+    }
 }
 
 @Composable

@@ -13,8 +13,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.trendfollow.journal.domain.PrevResult
 import com.trendfollow.journal.domain.TrendCalculator
 import com.trendfollow.journal.domain.fmt
 import com.trendfollow.journal.domain.won
@@ -27,9 +29,12 @@ fun TodayScreen(state: JournalState, vm: JournalViewModel) {
     val today = LocalDate.now()
     val calc = TrendCalculator(state.settings)
     val todayLog = state.logs.firstOrNull { it.date == today }
-    val guide = calc.guide(todayLog?.condition, state.trades)
+    val stockBefore = calc.stockUnitsBefore(today, state.logs)
+    val stockToday = calc.stockUnitsOn(today, state.logs)
+    val suggested = calc.suggestedPrevResult(state.trades)
+    val guide = calc.guide(todayLog?.condition, stockToday, state.trades)
     val perf = calc.performance(state.trades, today)
-    val history = calc.stockUnitHistory(state.trades)
+    val history = calc.stockUnitHistory(state.logs)
     var price by remember { mutableStateOf("") }
 
     LazyColumn(
@@ -48,12 +53,33 @@ fun TodayScreen(state: JournalState, vm: JournalViewModel) {
         item {
             SectionCard("오늘의 시장상황") {
                 MarketSelector(todayLog?.condition, calc::marketUnitsFor) { vm.setMarket(today, it) }
-                if (todayLog == null) {
-                    val last = state.logs.maxByOrNull { it.date }
+                if (todayLog?.condition == null) {
+                    val last = state.logs.filter { it.condition != null }.maxByOrNull { it.date }
                     Text(
-                        "아직 입력하지 않았습니다." + (last?.let { " (최근 기록: ${it.date} ${it.condition.label})" } ?: ""),
+                        "아직 입력하지 않았습니다." + (last?.let { " (최근 기록: ${it.date} ${it.condition?.label})" } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                     )
+                }
+            }
+        }
+
+        item {
+            SectionCard("종목유닛 선택 (이전 수익율)") {
+                PrevResultSelector(todayLog?.prevResult) { vm.setPrevResult(today, it) }
+                Text(
+                    "목표(${fmt(calc.minProfitRate)}%) 미달성 −1 · 진행중 0 · 목표달성 +1",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                ValueRow(
+                    "종목유닛",
+                    "$stockBefore → $stockToday  (최대 ${calc.maxStockUnits})",
+                    bold = true,
+                )
+                if (todayLog?.prevResult == null) {
+                    Text("아직 선택하지 않았습니다. 선택 전에는 이전 종목유닛($stockBefore)을 그대로 씁니다.", style = MaterialTheme.typography.bodySmall)
+                }
+                suggested?.let {
+                    Text("매매기록 기준 추천: ${it.label}", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -68,6 +94,7 @@ fun TodayScreen(state: JournalState, vm: JournalViewModel) {
                 ValueRow("최대 투입비중 대비", "%.0f%%".format(guide.ratioOfMaxPosition))
                 ValueRow("총 투자금 대비", "%.1f%%".format(guide.ratioOfCapital))
                 ValueRow("1유닛 금액", won(calc.unitAmount))
+                ValueRow("종목수 (보유 / 최대)", "${guide.openCount} / ${guide.maxStocks}종목", bold = true)
                 HorizontalDivider()
                 guide.messages.forEach { Text("• $it", style = MaterialTheme.typography.bodyMedium) }
             }
@@ -120,12 +147,16 @@ fun TodayScreen(state: JournalState, vm: JournalViewModel) {
 
         if (history.isNotEmpty()) {
             item {
-                SectionCard("종목유닛 변화 (최근 5건)") {
+                SectionCard("종목유닛 변화 (최근 5일)") {
                     history.takeLast(5).reversed().forEach { step ->
                         ValueRow(
-                            "${step.trade.exitDate} ${step.trade.name} ${pct(step.trade.returnRate ?: 0.0)}",
-                            "${if (step.achieved) "달성 +1" else "미달 -1"}  ${step.before}→${step.after}",
-                            if (step.achieved) ProfitColor else LossColor,
+                            "${step.date} ${step.result.label}",
+                            "${step.before} → ${step.after}",
+                            when (step.result) {
+                                PrevResult.ACHIEVED -> ProfitColor
+                                PrevResult.MISSED -> LossColor
+                                PrevResult.ONGOING -> Color.Unspecified
+                            },
                         )
                     }
                 }

@@ -3,6 +3,7 @@ package com.trendfollow.journal.data
 import android.content.Context
 import com.trendfollow.journal.domain.MarketCondition
 import com.trendfollow.journal.domain.MarketLog
+import com.trendfollow.journal.domain.PrevResult
 import com.trendfollow.journal.domain.Settings
 import com.trendfollow.journal.domain.Trade
 import org.json.JSONArray
@@ -85,8 +86,9 @@ class JournalStore(context: Context) {
             val o = arr.getJSONObject(i)
             MarketLog(
                 date = LocalDate.parse(o.getString("date")),
-                condition = MarketCondition.valueOf(o.getString("condition")),
+                condition = o.optNullableString("condition")?.let(MarketCondition::valueOf),
                 memo = o.optString("memo", ""),
+                prevResult = o.optNullableString("prevResult")?.let(PrevResult::valueOf),
             )
         }
     }
@@ -97,8 +99,9 @@ class JournalStore(context: Context) {
             arr.put(
                 JSONObject()
                     .put("date", l.date.toString())
-                    .put("condition", l.condition.name)
+                    .put("condition", l.condition?.name ?: JSONObject.NULL)
                     .put("memo", l.memo)
+                    .put("prevResult", l.prevResult?.name ?: JSONObject.NULL)
             )
         }
         prefs.edit().putString(KEY_LOGS, arr.toString()).apply()

@@ -9,6 +9,13 @@ enum class MarketCondition(val label: String) {
     STRONG("강세"),
 }
 
+/** 이전 투자 수익율 결과 → 종목유닛 변화 */
+enum class PrevResult(val label: String, val delta: Int) {
+    MISSED("목표 미달성", -1),
+    ONGOING("진행중", 0),
+    ACHIEVED("목표 달성", 1),
+}
+
 /** 추세추종계산기 입력값 (괄호 안 입력 항목) */
 data class Settings(
     /** 총 투자금 (원) */
@@ -23,7 +30,7 @@ data class Settings(
     val totalUnits: Int = 5,
     /** 시장유닛 (최대) */
     val marketUnits: Int = 2,
-    /** 매매기록이 없을 때 시작 종목유닛 */
+    /** 첫 기록 이전의 시작 종목유닛 */
     val initialStockUnits: Int = 1,
 )
 
@@ -61,9 +68,10 @@ data class Trade(
         get() = if (!isClosed && currentPrice != null) (currentPrice - entryPrice) * quantity else null
 }
 
-/** 일별 시장 상황 기록 */
+/** 일별 기록: 시장 상황 + 이전 투자 결과(종목유닛 증감) */
 data class MarketLog(
     val date: LocalDate,
-    val condition: MarketCondition,
+    val condition: MarketCondition? = null,
     val memo: String = "",
+    val prevResult: PrevResult? = null,
 )

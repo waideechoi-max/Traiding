@@ -4,10 +4,10 @@ import java.time.LocalDate
 import kotlin.math.abs
 import kotlin.math.floor
 
-/** 종목유닛 변화 한 단계: 청산된 매매 하나가 종목유닛에 준 영향 */
+/** 종목유닛 변화 한 단계: 그날 선택한 이전 투자 결과가 종목유닛에 준 영향 */
 data class StockUnitStep(
-    val trade: Trade,
-    val achieved: Boolean,
+    val date: LocalDate,
+    val result: PrevResult,
     val before: Int,
     val after: Int,
 )
@@ -24,6 +24,9 @@ data class Guide(
     val ratioOfMaxPosition: Double,
     /** 총 투자금 대비 비율 (%) */
     val ratioOfCapital: Double,
+    /** 최대 보유 종목수 = 총 투자금 ÷ 1종목당 최대 투입비중 */
+    val maxStocks: Int,
+    val openCount: Int,
     val messages: List<String>,
 ) {
     val units: Int get() = marketUnits + stockUnits
@@ -59,6 +62,9 @@ data class DailyResult(
     val pnl: Double,
     val closedCount: Int,
     val memo: String,
+    val prevResult: PrevResult?,
+    /** 그날 기준 종목유닛 */
+    val stockUnits: Int,
 )
 
 class TrendCalculator(val settings: Settings) {
@@ -77,6 +83,10 @@ class TrendCalculator(val settings: Settings) {
     val unitAmount: Double
         get() = if (settings.totalUnits > 0) maxPositionAmount / settings.totalUnits else 0.0
 
+    /** 종목수 = 총 투자금 ÷ 1종목당 최대 투입비중 (소수점 버림) */
+    val maxStocks: Int
+        get() = if (maxPositionAmount > 0) floor(settings.totalCapital / maxPositionAmount + 1e-9).toInt() else 0
+
     val maxMarketUnits: Int get() = settings.marketUnits.coerceIn(0, settings.totalUnits.coerceAtLeast(0))
 
     /** 종목유닛 최대값 = 총 유닛 − 시장유닛 */
@@ -93,28 +103,44 @@ class TrendCalculator(val settings: Settings) {
 
     fun isAchieved(trade: Trade): Boolean = (trade.returnRate ?: Double.NEGATIVE_INFINITY) >= minProfitRate - 1e-9
 
-    /** 청산된 매매를 청산일 순으로 따라가며 종목유닛을 +1 / −1 (0 ~ 최대 사이로 제한) */
-    fun stockUnitHistory(trades: List<Trade>): List<StockUnitStep> {
-        var units = settings.initialStockUnits.coerceIn(0, maxStockUnits)
-        return trades.filter { it.isClosed }
-            .sortedWith(compareBy<Trade>({ it.exitDate }, { it.id }))
-            .map { trade ->
-                val achieved = isAchieved(trade)
+    val initialStockUnits: Int get() = settings.initialStockUnits.coerceIn(0, maxStockUnits)
+
+    /** 날짜순으로 이전 투자 결과(미달성 −1 / 진행중 0 / 달성 +1)를 누적 (0 ~ 최대 사이로 제한) */
+    fun stockUnitHistory(logs: List<MarketLog>): List<StockUnitStep> {
+        var units = initialStockUnits
+        return logs.filter { it.prevResult != null }
+            .sortedBy { it.date }
+            .map { log ->
                 val before = units
-                units = (units + if (achieved) 1 else -1).coerceIn(0, maxStockUnits)
-                StockUnitStep(trade, achieved, before, units)
+                units = (units + log.prevResult!!.delta).coerceIn(0, maxStockUnits)
+                StockUnitStep(log.date, log.prevResult, before, units)
             }
     }
 
-    fun currentStockUnits(trades: List<Trade>): Int =
-        stockUnitHistory(trades).lastOrNull()?.after ?: settings.initialStockUnits.coerceIn(0, maxStockUnits)
+    /** 해당 날짜의 선택까지 반영한 종목유닛 */
+    fun stockUnitsOn(date: LocalDate, logs: List<MarketLog>): Int =
+        stockUnitHistory(logs).lastOrNull { !it.date.isAfter(date) }?.after ?: initialStockUnits
+
+    /** 해당 날짜 선택 전(전날까지) 종목유닛 */
+    fun stockUnitsBefore(date: LocalDate, logs: List<MarketLog>): Int =
+        stockUnitHistory(logs).lastOrNull { it.date.isBefore(date) }?.after ?: initialStockUnits
+
+    /** 매매기록으로 본 이전 투자 결과 추천: 가장 최근 매수 종목이 보유중이면 진행중, 청산됐으면 달성/미달성 */
+    fun suggestedPrevResult(trades: List<Trade>): PrevResult? {
+        val last = trades.maxWithOrNull(compareBy<Trade>({ it.entryDate }, { it.id })) ?: return null
+        return when {
+            !last.isClosed -> PrevResult.ONGOING
+            isAchieved(last) -> PrevResult.ACHIEVED
+            else -> PrevResult.MISSED
+        }
+    }
 
     fun suggestedQuantity(price: Double, amount: Double): Long =
         if (price > 0) floor(amount / price + 1e-9).toLong() else 0
 
-    fun guide(condition: MarketCondition?, trades: List<Trade>): Guide {
+    fun guide(condition: MarketCondition?, stockUnits: Int, trades: List<Trade>): Guide {
         val market = marketUnitsFor(condition)
-        val stock = currentStockUnits(trades)
+        val stock = stockUnits.coerceIn(0, maxStockUnits)
         val units = market + stock
         val amount = units * unitAmount
         val messages = mutableListOf<String>()
@@ -130,9 +156,18 @@ class TrendCalculator(val settings: Settings) {
         }
 
         if (stock == 0) {
-            messages += "종목유닛 0: 최근 매매가 목표 수익률(${fmt(minProfitRate)}%)에 연속 미달했습니다. 매매 방식을 점검하세요."
+            messages += "종목유닛 0: 이전 투자가 목표 수익률(${fmt(minProfitRate)}%)에 연속 미달했습니다. 매매 방식을 점검하세요."
         } else if (stock == maxStockUnits && maxStockUnits > 0) {
-            messages += "종목유닛 최대($stock): 최근 매매가 목표 수익률을 달성하고 있습니다."
+            messages += "종목유닛 최대($stock): 이전 투자가 목표 수익률을 달성하고 있습니다."
+        }
+
+        val openCount = trades.count { !it.isClosed }
+        if (maxStocks > 0) {
+            messages += if (openCount >= maxStocks) {
+                "보유 ${openCount}종목 / 최대 ${maxStocks}종목: 최대 종목수에 도달했습니다. 신규 종목 진입을 보류하세요."
+            } else {
+                "보유 ${openCount}종목 / 최대 ${maxStocks}종목: 신규 ${maxStocks - openCount}종목 더 진입할 수 있습니다."
+            }
         }
 
         if (units == 0) messages += "오늘 투입 가능 유닛 0 → 신규 매수 없이 관망(현금 보유)."
@@ -161,6 +196,8 @@ class TrendCalculator(val settings: Settings) {
             amountPerStock = amount,
             ratioOfMaxPosition = if (total > 0) units * 100.0 / total else 0.0,
             ratioOfCapital = if (settings.totalCapital > 0) amount * 100 / settings.totalCapital else 0.0,
+            maxStocks = maxStocks,
+            openCount = openCount,
             messages = messages,
         )
     }
@@ -202,6 +239,8 @@ class TrendCalculator(val settings: Settings) {
                 pnl = closed.sumOf { it.realizedPnl ?: 0.0 },
                 closedCount = closed.size,
                 memo = logByDate[d]?.memo.orEmpty(),
+                prevResult = logByDate[d]?.prevResult,
+                stockUnits = stockUnitsOn(d, logs),
             )
         }
     }

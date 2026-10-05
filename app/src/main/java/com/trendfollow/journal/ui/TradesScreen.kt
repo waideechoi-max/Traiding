@@ -149,7 +149,7 @@ private fun TradeEditor(
     val calc = TrendCalculator(state.settings)
     val today = LocalDate.now()
     val todayCondition = state.logs.firstOrNull { it.date == today }?.condition
-    val guide = calc.guide(todayCondition, state.trades.filter { it.id != initial?.id })
+    val guide = calc.guide(todayCondition, calc.stockUnitsOn(today, state.logs), state.trades.filter { it.id != initial?.id })
 
     var name by remember { mutableStateOf(initial?.name ?: "") }
     var entryDate by remember { mutableStateOf((initial?.entryDate ?: today).toString()) }

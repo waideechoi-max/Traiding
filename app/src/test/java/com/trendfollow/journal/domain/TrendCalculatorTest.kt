@@ -36,41 +36,61 @@ class TrendCalculatorTest {
         assertEquals(0, calc.marketUnitsFor(null))
     }
 
-    @Test
-    fun stockUnitsMoveWithResultsAndClamp() {
-        assertEquals(1, calc.currentStockUnits(emptyList()))
-        val trades = listOf(
-            closed(1, 10000.0, 12400.0, 1), // +24% 달성 → 2
-            closed(2, 10000.0, 13000.0, 2), // 달성 → 3
-            closed(3, 10000.0, 15000.0, 3), // 달성 → 3 (최대)
-            closed(4, 10000.0, 11000.0, 4), // +10% 미달 → 2
-        )
-        assertEquals(listOf(2, 3, 3, 2), calc.stockUnitHistory(trades).map { it.after })
-        assertEquals(2, calc.currentStockUnits(trades))
+    private fun log(dayOffset: Int, r: PrevResult?, c: MarketCondition? = null) =
+        MarketLog(day.plusDays(dayOffset.toLong()), c, prevResult = r)
 
-        val losses = (1..5L).map { closed(it, 10000.0, 9200.0, it.toInt()) }
-        assertEquals(0, calc.currentStockUnits(losses))
+    @Test
+    fun maxStocks() {
+        // 1억 ÷ 2,500만 = 4종목
+        assertEquals(4, calc.maxStocks)
+        assertEquals(3, TrendCalculator(Settings(totalCapital = 90_000_000, stopLossRate = 7.0)).maxStocks) // 9천만 ÷ 2,571만 = 3.5 → 3
+        assertEquals(0, TrendCalculator(Settings()).maxStocks)
     }
 
     @Test
-    fun historyOrderedByExitDate() {
-        val trades = listOf(
-            closed(1, 10000.0, 9000.0, 5),   // 나중에 청산 (미달)
-            closed(2, 10000.0, 12500.0, 1),  // 먼저 청산 (달성)
+    fun stockUnitsFollowDailySelectionAndClamp() {
+        assertEquals(1, calc.stockUnitsOn(day, emptyList()))
+        val logs = listOf(
+            log(3, PrevResult.MISSED),   // 3 → 2
+            log(0, PrevResult.ACHIEVED), // 1 → 2 (날짜순 정렬 확인)
+            log(1, PrevResult.ONGOING),  // 2 → 2
+            log(2, PrevResult.ACHIEVED), // 2 → 3
+            log(5, null, MarketCondition.STRONG), // 결과 미선택은 변화 없음
         )
-        assertEquals(listOf(2L, 1L), calc.stockUnitHistory(trades).map { it.trade.id })
-        assertEquals(1, calc.currentStockUnits(trades))
+        assertEquals(listOf(2, 2, 3, 2), calc.stockUnitHistory(logs).map { it.after })
+        assertEquals(3, calc.stockUnitsOn(day.plusDays(2), logs))
+        assertEquals(3, calc.stockUnitsBefore(day.plusDays(3), logs))
+        assertEquals(2, calc.stockUnitsOn(day.plusDays(3), logs))
+        assertEquals(2, calc.stockUnitsOn(day.plusDays(10), logs))
+        assertEquals(1, calc.stockUnitsBefore(day, logs))
+
+        val up = (0..5).map { log(it, PrevResult.ACHIEVED) }
+        assertEquals(3, calc.stockUnitsOn(day.plusDays(5), up))
+        val down = (0..5).map { log(it, PrevResult.MISSED) }
+        assertEquals(0, calc.stockUnitsOn(day.plusDays(5), down))
+    }
+
+    @Test
+    fun suggestedPrevResultFromTrades() {
+        assertEquals(null, calc.suggestedPrevResult(emptyList()))
+        assertEquals(PrevResult.ACHIEVED, calc.suggestedPrevResult(listOf(closed(1, 100.0, 130.0, 1))))
+        assertEquals(PrevResult.MISSED, calc.suggestedPrevResult(listOf(closed(1, 100.0, 110.0, 1))))
+        val open = Trade(2, "B", day.plusDays(1), 100.0, 1, 3)
+        assertEquals(PrevResult.ONGOING, calc.suggestedPrevResult(listOf(closed(1, 100.0, 130.0, 1), open)))
     }
 
     @Test
     fun guideAmounts() {
-        val g = calc.guide(MarketCondition.STRONG, emptyList())
+        val g = calc.guide(MarketCondition.STRONG, 1, emptyList())
         assertEquals(3, g.units) // 시장 2 + 종목 1
         assertEquals(15_000_000.0, g.amountPerStock, 1e-6)
         assertEquals(60.0, g.ratioOfMaxPosition, 1e-9)
         assertEquals(15.0, g.ratioOfCapital, 1e-9)
 
-        val weak = calc.guide(MarketCondition.WEAK, (1..5L).map { closed(it, 100.0, 90.0, it.toInt()) })
+        assertEquals(4, g.maxStocks)
+        assertTrue(g.messages.any { it.contains("최대 4종목") })
+
+        val weak = calc.guide(MarketCondition.WEAK, 0, emptyList())
         assertEquals(0, weak.units)
         assertEquals(0.0, weak.amountPerStock, 1e-9)
         assertTrue(weak.messages.any { it.contains("관망") })
@@ -79,9 +99,9 @@ class TrendCalculatorTest {
     @Test
     fun stopAndTargetAlerts() {
         val open = Trade(1, "A", day, 10000.0, 10, 3, currentPrice = 9100.0)
-        assertTrue(calc.guide(MarketCondition.NEUTRAL, listOf(open)).messages.any { it.contains("손절") && it.contains("A") })
+        assertTrue(calc.guide(MarketCondition.NEUTRAL, 1, listOf(open)).messages.any { it.contains("손절") && it.contains("A") })
         val win = open.copy(currentPrice = 12500.0)
-        assertTrue(calc.guide(MarketCondition.NEUTRAL, listOf(win)).messages.any { it.contains("목표가") })
+        assertTrue(calc.guide(MarketCondition.NEUTRAL, 1, listOf(win)).messages.any { it.contains("목표가") })
     }
 
     @Test
@@ -108,12 +128,27 @@ class TrendCalculatorTest {
     @Test
     fun dailyResultsMergeLogsAndTrades() {
         val trades = listOf(closed(1, 100.0, 110.0, 1, qty = 10))
-        val logs = listOf(MarketLog(day, MarketCondition.STRONG), MarketLog(day.plusDays(1), MarketCondition.NEUTRAL))
+        val logs = listOf(
+            MarketLog(day, MarketCondition.STRONG, prevResult = PrevResult.ACHIEVED),
+            MarketLog(day.plusDays(1), MarketCondition.NEUTRAL),
+        )
         val r = calc.dailyResults(trades, logs)
         assertEquals(listOf(day.plusDays(1), day), r.map { it.date })
         assertEquals(100.0, r[0].pnl, 1e-9)
         assertEquals(MarketCondition.NEUTRAL, r[0].condition)
         assertEquals(0.0, r[1].pnl, 1e-9)
+        assertEquals(PrevResult.ACHIEVED, r[1].prevResult)
+        assertEquals(2, r[1].stockUnits)
+        assertEquals(2, r[0].stockUnits)
+    }
+
+    @Test
+    fun fullGuideTooManyPositions() {
+        val open = (1..4L).map { Trade(it, "S$it", day, 100.0, 1, 3) }
+        val g = calc.guide(MarketCondition.STRONG, 3, open)
+        assertEquals(5, g.units)
+        assertEquals(25_000_000.0, g.amountPerStock, 1e-6)
+        assertTrue(g.messages.any { it.contains("최대 종목수에 도달") })
     }
 
     @Test

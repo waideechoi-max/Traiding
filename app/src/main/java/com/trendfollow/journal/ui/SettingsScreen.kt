@@ -64,7 +64,7 @@ fun SettingsScreen(state: JournalState, vm: JournalViewModel) {
             )
             InputField(
                 "시작 종목유닛", initialStock, { initialStock = it }, suffix = "유닛",
-                supporting = "청산 기록이 없을 때의 종목유닛 (0 ~ ${calc.maxStockUnits})",
+                supporting = "첫 선택 이전의 종목유닛 (0 ~ ${calc.maxStockUnits})",
             )
             Button(
                 onClick = {
@@ -98,6 +98,8 @@ fun SettingsScreen(state: JournalState, vm: JournalViewModel) {
                 "= 총 투자금 × 최대 손실율 ÷ 종목당 최대 손실율",
                 style = MaterialTheme.typography.bodySmall,
             )
+            ValueRow("종목수", "${calc.maxStocks}종목", bold = true)
+            Text("= 총 투자금 ÷ 1종목당 최대 투입비중 (소수점 버림)", style = MaterialTheme.typography.bodySmall)
             ValueRow("1유닛당 금액", won(calc.unitAmount), bold = true)
             Text("= 1종목당 최대 투입비중 ÷ 종목당 총 유닛수", style = MaterialTheme.typography.bodySmall)
         }
@@ -109,7 +111,7 @@ fun SettingsScreen(state: JournalState, vm: JournalViewModel) {
                     "보합(${calc.marketUnitsFor(MarketCondition.NEUTRAL)}), " +
                     "강세(${calc.marketUnitsFor(MarketCondition.STRONG)})"
             )
-            Text("• 종목유닛: 직전 청산 매매가 최소 수익율(${fmt(calc.minProfitRate)}%) 달성 시 +1, 미달 시 −1 (0 ~ ${calc.maxStockUnits})")
+            Text("• 종목유닛: 이전 수익율이 목표(${fmt(calc.minProfitRate)}%) 미달성 −1, 진행중 0, 목표달성 +1 (0 ~ ${calc.maxStockUnits}, 오늘 화면에서 선택)")
             Text("• 오늘 종목당 투입금액 = (시장유닛 + 종목유닛) × 1유닛당 금액")
         }
         Text(

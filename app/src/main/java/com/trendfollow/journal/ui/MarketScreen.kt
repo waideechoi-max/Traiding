@@ -44,7 +44,7 @@ fun MarketScreen(state: JournalState, vm: JournalViewModel) {
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item {
-            Button(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) { Text("시장상황 기록 추가") }
+            Button(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) { Text("일지 기록 추가") }
         }
         if (days.isEmpty()) {
             item { Text("기록이 없습니다.", modifier = Modifier.padding(top = 24.dp)) }
@@ -59,6 +59,10 @@ fun MarketScreen(state: JournalState, vm: JournalViewModel) {
                             style = MaterialTheme.typography.labelLarge,
                         )
                     }
+                    Text(
+                        (d.prevResult?.let { "이전 수익율 ${it.label} · " } ?: "") + "종목유닛 ${d.stockUnits}",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     if (d.closedCount > 0) {
                         Text("청산 ${d.closedCount}건 · 실현손익 ${won(d.pnl)}", color = pnlColor(d.pnl))
                     }
@@ -75,9 +79,9 @@ fun MarketScreen(state: JournalState, vm: JournalViewModel) {
             initial = existing,
             unitsFor = calc::marketUnitsFor,
             onDismiss = { creating = false; editingDate = null },
-            onSave = { date, c, memo ->
-                if (editingDate != null && editingDate != date) vm.deleteLog(editingDate!!)
-                vm.setMarket(date, c, memo)
+            onSave = { log ->
+                if (editingDate != null && editingDate != log.date) vm.deleteLog(editingDate!!)
+                vm.saveLog(log)
                 creating = false; editingDate = null
             },
             onDelete = if (existing != null) {
@@ -93,21 +97,25 @@ private fun MarketLogEditor(
     initial: MarketLog?,
     unitsFor: (MarketCondition) -> Int,
     onDismiss: () -> Unit,
-    onSave: (LocalDate, MarketCondition, String) -> Unit,
+    onSave: (MarketLog) -> Unit,
     onDelete: (() -> Unit)?,
 ) {
     var date by remember { mutableStateOf(initialDate.toString()) }
     var condition by remember { mutableStateOf(initial?.condition) }
     var memo by remember { mutableStateOf(initial?.memo ?: "") }
+    var prevResult by remember { mutableStateOf(initial?.prevResult) }
     var error by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("시장상황 기록") },
+        title = { Text("일지 기록") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 InputField("날짜 (yyyy-MM-dd)", date, { date = it }, numeric = false, isError = parseDate(date) == null)
+                Text("시장상황", style = MaterialTheme.typography.titleSmall)
                 MarketSelector(condition, unitsFor) { condition = it }
+                Text("이전 수익율 (종목유닛)", style = MaterialTheme.typography.titleSmall)
+                PrevResultSelector(prevResult) { prevResult = it }
                 InputField("메모 (지수, 이슈 등)", memo, { memo = it }, numeric = false)
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
@@ -115,13 +123,12 @@ private fun MarketLogEditor(
         confirmButton = {
             TextButton(onClick = {
                 val d = parseDate(date)
-                val c = condition
                 error = when {
                     d == null -> "날짜 형식이 올바르지 않습니다."
-                    c == null -> "시장상황을 선택하세요."
+                    condition == null && prevResult == null -> "시장상황 또는 이전 수익율을 선택하세요."
                     else -> null
                 }
-                if (d != null && c != null) onSave(d, c, memo.trim())
+                if (d != null && error == null) onSave(MarketLog(d, condition, memo.trim(), prevResult))
             }) { Text("저장") }
         },
         dismissButton = {
