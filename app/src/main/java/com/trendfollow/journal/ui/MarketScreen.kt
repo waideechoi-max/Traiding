@@ -33,7 +33,7 @@ import java.time.LocalDate
 @Composable
 fun MarketScreen(state: JournalState, vm: JournalViewModel) {
     val calc = TrendCalculator(state.settings)
-    val days = calc.dailyResults(state.logs)
+    val days = calc.dailyResults(state.marketLogs, state.account.logs)
     var editingDate by remember { mutableStateOf<LocalDate?>(null) }
     var creating by remember { mutableStateOf(false) }
 
@@ -44,6 +44,11 @@ fun MarketScreen(state: JournalState, vm: JournalViewModel) {
     ) {
         item {
             Button(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) { Text("일지 기록 추가") }
+            Text(
+                "시장상황·메모는 모든 계좌 공통, 이전 수익율·종목유닛은 ${state.account.nickname} 기준입니다.",
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
         if (days.isEmpty()) {
             item { Text("기록이 없습니다.", modifier = Modifier.padding(top = 24.dp)) }
@@ -69,7 +74,8 @@ fun MarketScreen(state: JournalState, vm: JournalViewModel) {
     }
 
     if (creating || editingDate != null) {
-        val existing = state.logs.firstOrNull { it.date == editingDate }
+        val existing = days.firstOrNull { it.date == editingDate }
+            ?.let { MarketLog(it.date, it.condition, it.memo, it.prevResult) }
         MarketLogEditor(
             initialDate = editingDate ?: LocalDate.now(),
             initial = existing,
@@ -110,7 +116,7 @@ private fun MarketLogEditor(
                 InputField("날짜 (yyyy-MM-dd)", date, { date = it }, numeric = false, isError = parseDate(date) == null)
                 Text("시장상황", style = MaterialTheme.typography.titleSmall)
                 MarketSelector(condition, unitsFor) { condition = it }
-                Text("이전 수익율 (종목유닛)", style = MaterialTheme.typography.titleSmall)
+                Text("이전 수익율 (현재 계좌 종목유닛)", style = MaterialTheme.typography.titleSmall)
                 PrevResultSelector(prevResult) { prevResult = it }
                 InputField("메모 (지수, 이슈 등)", memo, { memo = it }, numeric = false)
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }

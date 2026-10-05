@@ -22,9 +22,11 @@ import java.util.Locale
 fun TodayScreen(state: JournalState, vm: JournalViewModel) {
     val today = LocalDate.now()
     val calc = TrendCalculator(state.settings)
-    val todayLog = state.logs.firstOrNull { it.date == today }
-    val stockBefore = calc.stockUnitsBefore(today, state.logs)
-    val stockToday = calc.stockUnitsOn(today, state.logs)
+    val todayLog = state.marketLogs.firstOrNull { it.date == today }
+    val accountLogs = state.account.logs
+    val todayPrev = accountLogs.firstOrNull { it.date == today }?.prevResult
+    val stockBefore = calc.stockUnitsBefore(today, accountLogs)
+    val stockToday = calc.stockUnitsOn(today, accountLogs)
     val guide = calc.guide(todayLog?.condition, stockToday)
 
     LazyColumn(
@@ -41,10 +43,10 @@ fun TodayScreen(state: JournalState, vm: JournalViewModel) {
         }
 
         item {
-            SectionCard("오늘의 시장상황") {
+            SectionCard("오늘의 시장상황 (모든 계좌 공통)") {
                 MarketSelector(todayLog?.condition, calc::marketUnitsFor) { vm.setMarket(today, it) }
                 if (todayLog?.condition == null) {
-                    val last = state.logs.filter { it.condition != null }.maxByOrNull { it.date }
+                    val last = state.marketLogs.filter { it.condition != null }.maxByOrNull { it.date }
                     Text(
                         "아직 입력하지 않았습니다." + (last?.let { " (최근 기록: ${it.date} ${it.condition?.label})" } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
@@ -54,8 +56,8 @@ fun TodayScreen(state: JournalState, vm: JournalViewModel) {
         }
 
         item {
-            SectionCard("종목유닛 선택 (이전 수익율)") {
-                PrevResultSelector(todayLog?.prevResult) { vm.setPrevResult(today, it) }
+            SectionCard("${state.account.nickname} · 종목유닛 선택 (이전 수익율)") {
+                PrevResultSelector(todayPrev) { vm.setPrevResult(today, it) }
                 Text(
                     "목표(${fmt(calc.minProfitRate)}%) 미달성 −1 · 진행중 0 · 목표달성 +1",
                     style = MaterialTheme.typography.bodySmall,
@@ -65,14 +67,14 @@ fun TodayScreen(state: JournalState, vm: JournalViewModel) {
                     "$stockBefore → $stockToday  (최대 ${calc.maxStockUnits})",
                     bold = true,
                 )
-                if (todayLog?.prevResult == null) {
+                if (todayPrev == null) {
                     Text("아직 선택하지 않았습니다. 선택 전에는 이전 종목유닛($stockBefore)을 그대로 씁니다.", style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
 
         item {
-            SectionCard("투자비중 가이드") {
+            SectionCard("${state.account.nickname} · 투자비중 가이드") {
                 ValueRow("총 투자금", won(state.settings.totalCapital.toDouble()))
                 ValueRow("1종목당 최대 투입비중", won(calc.maxPositionAmount))
                 ValueRow("종목수", "${guide.maxStocks}종목")

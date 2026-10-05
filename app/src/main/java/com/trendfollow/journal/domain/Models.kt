@@ -41,3 +41,16 @@ data class MarketLog(
     val memo: String = "",
     val prevResult: PrevResult? = null,
 )
+
+const val ACCOUNT_COUNT = 5
+
+/**
+ * 계좌: 별명 + 계좌별 계산기 설정 + 계좌별 종목유닛 기록.
+ * logs에는 날짜별 이전 수익율(prevResult)만 담고, 시장상황은 모든 계좌가 공유합니다.
+ */
+data class Account(
+    val id: Int,
+    val nickname: String,
+    val settings: Settings = Settings(),
+    val logs: List<MarketLog> = emptyList(),
+)

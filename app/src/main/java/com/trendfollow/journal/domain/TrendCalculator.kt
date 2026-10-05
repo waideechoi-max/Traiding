@@ -146,17 +146,20 @@ class TrendCalculator(val settings: Settings) {
         )
     }
 
-    /** 날짜별 일지 (최근 날짜 먼저) */
-    fun dailyResults(logs: List<MarketLog>): List<DailyResult> =
-        logs.sortedByDescending { it.date }.map { log ->
+    /** 날짜별 일지 (최근 날짜 먼저): 공유 시장기록 + 이 계좌의 이전 수익율 기록 */
+    fun dailyResults(marketLogs: List<MarketLog>, accountLogs: List<MarketLog>): List<DailyResult> {
+        val market = marketLogs.associateBy { it.date }
+        val account = accountLogs.associateBy { it.date }
+        return (market.keys + account.keys).sortedDescending().map { d ->
             DailyResult(
-                date = log.date,
-                condition = log.condition,
-                memo = log.memo,
-                prevResult = log.prevResult,
-                stockUnits = stockUnitsOn(log.date, logs),
+                date = d,
+                condition = market[d]?.condition,
+                memo = market[d]?.memo.orEmpty(),
+                prevResult = account[d]?.prevResult,
+                stockUnits = stockUnitsOn(d, accountLogs),
             )
         }
+    }
 }
 
 fun won(value: Double): String = "%,d원".format(Math.round(value))

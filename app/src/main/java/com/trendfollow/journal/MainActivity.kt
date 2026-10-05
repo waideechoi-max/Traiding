@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
@@ -29,6 +30,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.trendfollow.journal.ui.AccountBar
 import com.trendfollow.journal.ui.JournalViewModel
 import com.trendfollow.journal.ui.MarketScreen
 import com.trendfollow.journal.ui.SettingsScreen
@@ -54,7 +56,12 @@ class MainActivity : ComponentActivity() {
                 var selected by rememberSaveable { mutableIntStateOf(0) }
 
                 Scaffold(
-                    topBar = { CenterAlignedTopAppBar(title = { Text("추세추종 매매일지 · ${tabs[selected].title}") }) },
+                    topBar = {
+                        Column {
+                            CenterAlignedTopAppBar(title = { Text("추세추종 매매일지 · ${tabs[selected].title}") })
+                            AccountBar(state.accounts, state.selected, vm::selectAccount)
+                        }
+                    },
                     bottomBar = {
                         NavigationBar {
                             tabs.forEachIndexed { i, tab ->

@@ -27,14 +27,17 @@ import com.trendfollow.journal.domain.won
 @Composable
 fun SettingsScreen(state: JournalState, vm: JournalViewModel) {
     val s = state.settings
-    var capital by remember { mutableStateOf(if (s.totalCapital > 0) s.totalCapital.toString() else "") }
-    var maxLoss by remember { mutableStateOf(fmt(s.maxLossRate)) }
-    var reward by remember { mutableStateOf(fmt(s.rewardRatio)) }
-    var stopLoss by remember { mutableStateOf(fmt(s.stopLossRate)) }
-    var totalUnits by remember { mutableStateOf(s.totalUnits.toString()) }
-    var marketUnits by remember { mutableStateOf(s.marketUnits.toString()) }
-    var initialStock by remember { mutableStateOf(s.initialStockUnits.toString()) }
-    var message by remember { mutableStateOf<String?>(null) }
+    // 계좌를 바꾸면 입력칸을 그 계좌 값으로 다시 채움
+    val key = state.selected
+    var nickname by remember(key) { mutableStateOf(state.account.nickname) }
+    var capital by remember(key) { mutableStateOf(if (s.totalCapital > 0) s.totalCapital.toString() else "") }
+    var maxLoss by remember(key) { mutableStateOf(fmt(s.maxLossRate)) }
+    var reward by remember(key) { mutableStateOf(fmt(s.rewardRatio)) }
+    var stopLoss by remember(key) { mutableStateOf(fmt(s.stopLossRate)) }
+    var totalUnits by remember(key) { mutableStateOf(s.totalUnits.toString()) }
+    var marketUnits by remember(key) { mutableStateOf(s.marketUnits.toString()) }
+    var initialStock by remember(key) { mutableStateOf(s.initialStockUnits.toString()) }
+    var message by remember(key) { mutableStateOf<String?>(null) }
 
     // 입력 중인 값으로 바로 미리보기
     val draft = Settings(
@@ -52,6 +55,10 @@ fun SettingsScreen(state: JournalState, vm: JournalViewModel) {
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        SectionCard("계좌 ${state.selected + 1} 설정") {
+            InputField("계좌 별명", nickname, { nickname = it.take(12) }, numeric = false, supporting = "예: 키움 주식, 연금계좌 (12자까지)")
+        }
+
         SectionCard("추세추종계산기 입력") {
             InputField("총 투자금", capital, { capital = it }, suffix = "원")
             InputField("최대 손실율 (총 투자금 대비)", maxLoss, { maxLoss = it }, suffix = "%")
@@ -69,6 +76,7 @@ fun SettingsScreen(state: JournalState, vm: JournalViewModel) {
             Button(
                 onClick = {
                     message = when {
+                        nickname.isBlank() -> "계좌 별명을 입력하세요."
                         draft.totalCapital <= 0 -> "총 투자금을 입력하세요."
                         draft.maxLossRate <= 0 || draft.stopLossRate <= 0 -> "손실율은 0보다 커야 합니다."
                         draft.maxLossRate >= draft.stopLossRate -> "최대 손실율은 종목당 최대 손실율보다 작아야 합니다. (예: 2% < 8%)"
@@ -79,7 +87,7 @@ fun SettingsScreen(state: JournalState, vm: JournalViewModel) {
                         else -> null
                     }
                     if (message == null) {
-                        vm.saveSettings(draft)
+                        vm.saveAccount(nickname.trim(), draft)
                         message = "저장했습니다."
                     }
                 },

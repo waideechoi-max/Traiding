@@ -105,16 +105,33 @@ class TrendCalculatorTest {
     }
 
     @Test
-    fun dailyResultsFromLogs() {
-        val logs = listOf(
-            MarketLog(day, MarketCondition.STRONG, prevResult = PrevResult.ACHIEVED),
+    fun dailyResultsMergeSharedMarketAndAccountLogs() {
+        val market = listOf(
+            MarketLog(day, MarketCondition.STRONG, memo = "코스피 상승"),
             MarketLog(day.plusDays(1), MarketCondition.NEUTRAL),
         )
-        val r = calc.dailyResults(logs)
-        assertEquals(listOf(day.plusDays(1), day), r.map { it.date })
-        assertEquals(MarketCondition.NEUTRAL, r[0].condition)
-        assertEquals(PrevResult.ACHIEVED, r[1].prevResult)
+        val account = listOf(
+            MarketLog(day, prevResult = PrevResult.ACHIEVED),
+            MarketLog(day.plusDays(2), prevResult = PrevResult.MISSED),
+        )
+        val r = calc.dailyResults(market, account)
+        assertEquals(listOf(day.plusDays(2), day.plusDays(1), day), r.map { it.date })
+        assertEquals(null, r[0].condition)
+        assertEquals(PrevResult.MISSED, r[0].prevResult)
+        assertEquals(1, r[0].stockUnits)
+        assertEquals(MarketCondition.NEUTRAL, r[1].condition)
         assertEquals(2, r[1].stockUnits)
-        assertEquals(2, r[0].stockUnits)
+        assertEquals("코스피 상승", r[2].memo)
+        assertEquals(PrevResult.ACHIEVED, r[2].prevResult)
+        assertEquals(2, r[2].stockUnits)
+    }
+
+    @Test
+    fun accountsAreIndependent() {
+        val a = TrendCalculator(Settings(totalCapital = 128_000_000))
+        val b = TrendCalculator(Settings(totalCapital = 50_000_000, initialStockUnits = 3))
+        assertEquals(19_200_000.0, a.guide(MarketCondition.STRONG, a.stockUnitsOn(day, emptyList())).amountPerStock, 1e-6)
+        // 5천만 × 2% ÷ 8% = 1,250만, 5유닛 전부 = 1,250만
+        assertEquals(12_500_000.0, b.guide(MarketCondition.STRONG, b.stockUnitsOn(day, emptyList())).amountPerStock, 1e-6)
     }
 }

@@ -2,9 +2,11 @@ package com.trendfollow.journal.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
@@ -18,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.trendfollow.journal.domain.Account
 import com.trendfollow.journal.domain.MarketCondition
 import com.trendfollow.journal.domain.PrevResult
 import java.time.LocalDate
@@ -76,6 +79,23 @@ fun InputField(
         keyboardOptions = if (numeric) KeyboardOptions(keyboardType = KeyboardType.Decimal) else KeyboardOptions.Default,
         modifier = modifier.fillMaxWidth(),
     )
+}
+
+/** 화면 위쪽 계좌 선택 줄 (5개, 좌우 스크롤) */
+@Composable
+fun AccountBar(accounts: List<Account>, selected: Int, onSelect: (Int) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        accounts.forEach { a ->
+            FilterChip(
+                selected = a.id == selected,
+                onClick = { onSelect(a.id) },
+                label = { Text(a.nickname) },
+            )
+        }
+    }
 }
 
 fun PrevResult.chipLabel(): String = when (this) {
