@@ -71,6 +71,7 @@ fun SettingsScreen(state: JournalState, vm: JournalViewModel) {
                     message = when {
                         draft.totalCapital <= 0 -> "총 투자금을 입력하세요."
                         draft.maxLossRate <= 0 || draft.stopLossRate <= 0 -> "손실율은 0보다 커야 합니다."
+                        draft.maxLossRate >= draft.stopLossRate -> "최대 손실율은 종목당 최대 손실율보다 작아야 합니다. (예: 2% < 8%)"
                         draft.rewardRatio <= 0 -> "목표손익비를 입력하세요."
                         draft.totalUnits <= 0 -> "총 유닛은 1 이상이어야 합니다."
                         draft.marketUnits !in 0..draft.totalUnits -> "시장유닛은 0 ~ 총 유닛 사이여야 합니다."

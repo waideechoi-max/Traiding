@@ -23,21 +23,6 @@ import com.trendfollow.journal.domain.PrevResult
 import java.time.LocalDate
 import java.time.format.DateTimeParseException
 
-val ProfitColor = Color(0xFFD32F2F) // 국내 관례: 수익 빨강
-val LossColor = Color(0xFF1565C0)   // 손실 파랑
-
-fun pnlColor(v: Double): Color = when {
-    v > 0 -> ProfitColor
-    v < 0 -> LossColor
-    else -> Color.Unspecified
-}
-
-/** 가격·수량 표시: 정수면 콤마, 소수면 소수 둘째 자리까지 */
-fun num(v: Double): String =
-    if (v == Math.rint(v)) "%,d".format(v.toLong()) else "%,.2f".format(v)
-
-fun pct(v: Double): String = "%+.2f%%".format(v)
-
 fun parseDouble(s: String): Double? = s.replace(",", "").trim().toDoubleOrNull()
 fun parseLong(s: String): Long? = s.replace(",", "").trim().toLongOrNull()
 fun parseDate(s: String): LocalDate? = try {

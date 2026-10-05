@@ -27,14 +27,13 @@ import androidx.compose.ui.unit.dp
 import com.trendfollow.journal.domain.MarketCondition
 import com.trendfollow.journal.domain.MarketLog
 import com.trendfollow.journal.domain.TrendCalculator
-import com.trendfollow.journal.domain.won
 import java.time.LocalDate
 
-/** 일지: 날짜별 시장상황 + 실현손익 */
+/** 일지: 날짜별 시장상황 + 이전 수익율·종목유닛 */
 @Composable
 fun MarketScreen(state: JournalState, vm: JournalViewModel) {
     val calc = TrendCalculator(state.settings)
-    val days = calc.dailyResults(state.trades, state.logs)
+    val days = calc.dailyResults(state.logs)
     var editingDate by remember { mutableStateOf<LocalDate?>(null) }
     var creating by remember { mutableStateOf(false) }
 
@@ -63,9 +62,6 @@ fun MarketScreen(state: JournalState, vm: JournalViewModel) {
                         (d.prevResult?.let { "이전 수익율 ${it.label} · " } ?: "") + "종목유닛 ${d.stockUnits}",
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    if (d.closedCount > 0) {
-                        Text("청산 ${d.closedCount}건 · 실현손익 ${won(d.pnl)}", color = pnlColor(d.pnl))
-                    }
                     if (d.memo.isNotBlank()) Text(d.memo, style = MaterialTheme.typography.bodySmall)
                 }
             }

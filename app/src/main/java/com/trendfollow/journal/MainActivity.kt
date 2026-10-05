@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,13 +33,11 @@ import com.trendfollow.journal.ui.JournalViewModel
 import com.trendfollow.journal.ui.MarketScreen
 import com.trendfollow.journal.ui.SettingsScreen
 import com.trendfollow.journal.ui.TodayScreen
-import com.trendfollow.journal.ui.TradesScreen
 
 private data class Tab(val title: String, val icon: ImageVector)
 
 private val tabs = listOf(
     Tab("오늘", Icons.Filled.Home),
-    Tab("매매기록", Icons.Filled.List),
     Tab("시장일지", Icons.Filled.DateRange),
     Tab("계산기", Icons.Filled.Settings),
 )
@@ -74,8 +71,7 @@ class MainActivity : ComponentActivity() {
                     Box(Modifier.padding(padding)) {
                         when (selected) {
                             0 -> TodayScreen(state, vm)
-                            1 -> TradesScreen(state, vm)
-                            2 -> MarketScreen(state, vm)
+                            1 -> MarketScreen(state, vm)
                             else -> SettingsScreen(state, vm)
                         }
                     }

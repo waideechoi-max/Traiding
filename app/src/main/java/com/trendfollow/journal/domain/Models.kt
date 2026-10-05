@@ -34,40 +34,6 @@ data class Settings(
     val initialStockUnits: Int = 1,
 )
 
-/** 매매 기록 */
-data class Trade(
-    val id: Long,
-    val name: String,
-    val entryDate: LocalDate,
-    val entryPrice: Double,
-    val quantity: Long,
-    /** 진입 시 사용한 유닛 수 (시장유닛 + 종목유닛) */
-    val units: Int,
-    /** 보유 종목의 현재가 (선택) */
-    val currentPrice: Double? = null,
-    val exitDate: LocalDate? = null,
-    val exitPrice: Double? = null,
-    val memo: String = "",
-) {
-    val isClosed: Boolean get() = exitDate != null && exitPrice != null
-    val investedAmount: Double get() = entryPrice * quantity
-
-    /** 청산 수익률 (%) */
-    val returnRate: Double?
-        get() = if (isClosed && entryPrice > 0) (exitPrice!! - entryPrice) / entryPrice * 100 else null
-
-    /** 실현 손익 (원) */
-    val realizedPnl: Double?
-        get() = if (isClosed) (exitPrice!! - entryPrice) * quantity else null
-
-    /** 보유 종목 평가 수익률 (%) */
-    val unrealizedRate: Double?
-        get() = if (!isClosed && currentPrice != null && entryPrice > 0) (currentPrice - entryPrice) / entryPrice * 100 else null
-
-    val unrealizedPnl: Double?
-        get() = if (!isClosed && currentPrice != null) (currentPrice - entryPrice) * quantity else null
-}
-
 /** 일별 기록: 시장 상황 + 이전 투자 결과(종목유닛 증감) */
 data class MarketLog(
     val date: LocalDate,
